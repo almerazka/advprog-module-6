@@ -31,12 +31,6 @@ message-body
 - **Reason-Phrase** : Penjelasan singkat tentang status _request_.
 - **Headers** : Informasi tambahan seperti _Content-Length_, Content-Type__, dll.
 - **Message-Body** : Isi dari halaman HTML yang dikirim ke browser.
-
-**Cara memisahkan respon :**
-
-- **Periksa request _method_** : Apakah permintaan menggunakan GET?
-- **Periksa _path_** : Apakah yang diminta adalah / (halaman utama) atau halaman lain?
-- **Periksa _HTTP version_** : Apakah menggunakan HTTP/1.1?
 </details>
 
 ### Milestone 1: Single-Threaded Web Server
@@ -182,6 +176,12 @@ Dalam implementasi _web_ server sederhana ini, kita perlu memisahkan respons ber
 
 Oleh karena itu, kita perlu memisahkan respon berdasarkan tiga aspek utama dalam **HTTP Headers** yaitu _request method_, _path_, dan _HTTP version_.
 
+***How to split between response?***
+
+- **Periksa request _method_** : Apakah permintaan menggunakan GET?
+- **Periksa _path_** : Apakah yang diminta adalah / (halaman utama) atau halaman lain?
+- **Periksa _HTTP version_** : Apakah menggunakan HTTP/1.1?
+
 1. Jika permintaan menggunakan metode **GET**, menuju path /, dan menggunakan HTTP/1.1, maka server akan mengembalikan halaman `hello.html` dengan kode status **200 OK**.
 2. Namun, jika permintaan memiliki path lain atau menggunakan metode **HTTP** yang berbeda, server akan merespons dengan kode status 4**04 NOT FOUND** dan mengembalikan halaman `404.html`.
     ```rust
@@ -192,6 +192,8 @@ Oleh karena itu, kita perlu memisahkan respon berdasarkan tiga aspek utama dalam
     };
     ```
 Kode ini secara sederhana mengecek apakah _request line_ sesuai dengan **GET / HTTP/1.1**. Jika iya, server akan mengembalikan halaman utama. Jika tidak, server akan menampilkan halaman error **404 Not Found**. Dengan cara ini, server bisa menangani berbagai jenis _request_ dengan lebih fleksibel, meniru perilaku _web_ server sebenarnya yang memberikan halaman berbeda berdasarkan permintaan pengguna.
+
+***Why the refactoring is needed?***
 
 Sebelum _refactoring_, kode yang menangani _request_ dan membentuk respons masih memiliki banyak duplikasi sehingga kita harus menulis ulang kode untuk menentukan _status_line_, membaca file HTML, dan menghitung panjang konten baik untuk **200 OK** maupun **404 NOT FOUND**. 
 
@@ -221,3 +223,26 @@ let (status_line, filename) = if request_line == "GET / HTTP/1.1" {
 let contents = fs::read_to_string(filename).unwrap(); //Membaca file HTML sesuai filename yang dipilih.
 ...
 ```
+
+### Milestone 4: Simulation slow response
+---
+Dalam implementasi web server kita saat ini, server hanya dapat menangani satu permintaan pada satu waktu karena berjalan dalam _single-thread_. Ini berarti bahwa setiap permintaan akan diproses secara berurutan, dan jika ada permintaan yang membutuhkan waktu lama untuk diproses, permintaan lain harus menunggu sampai permintaan sebelumnya selesai. Untuk memahami masalah ini, kita mensimulasikan respons lambat dengan menambahkan fitur yang menyebabkan server tidur (_sleep_) selama beberapa detik sebelum merespons permintaan.
+
+```rust
+let (status_line, filename) = match &request_line[..] {
+        "GET / HTTP/1.1" => ("HTTP/1.1 200 OK", "hello.html"),
+        "GET /sleep HTTP/1.1" => {
+            thread::sleep(Duration::from_secs(5)); // Simulasi delay selama 5 detik
+            ("HTTP/1.1 200 OK", "hello.html")
+        }
+        _ => ("HTTP/1.1 404 NOT FOUND", "404.html"),
+    };
+```
+
+Kode ini menambahkan _match statement_ untuk menangani permintaan ke `/sleep`. Jika browser meminta **GET** `/sleep HTTP/1.1`, server akan tidur selama 5 detik sebelum mengembalikan respons. Dimana ketika kita membuka `http://127.0.0.1:7878/sleep`, server akan tertunda selama 5 detik sebelum memberikan respons. Jika selama waktu ini kita mencoba membuka `http://127.0.0.1:7878/` di tab lain, kita akan melihat bahwa permintaan tersebut juga ikut tertunda dan tidak langsung mendapatkan respons. Hal ini menunjukkan bahwa server hanya bisa menangani satu permintaan pada satu waktu, dan permintaan berikutnya harus menunggu hingga permintaan sebelumnya selesai.
+
+***Why it works like that?***
+
+> Masalah ini terjadi karena server kita menggunakan  _single-thread_, yang berarti hanya ada satu eksekusi utama yang menangani seluruh permintaan. Dalam arsitektur ini, ketika browser mengirimkan permintaan ke server, server akan memproses permintaan pertama yang diterima. Jika permintaan tersebut memerlukan waktu lama untuk diproses, seperti dalam kasus penggunaan `thread::sleep()`, server akan berhenti sementara hingga proses tersebut selesai. Selama waktu ini, permintaan lain yang datang tidak dapat diproses dan harus menunggu giliran. Setelah permintaan pertama selesai, server baru bisa mulai menangani permintaan berikutnya. Karena mekanisme ini, server kita bersifat _blocking_, di mana permintaan yang lebih cepat pun tetap harus menunggu hingga permintaan yang lebih lambat selesai diproses.
+
+> Dalam lingkungan nyata, dampak dari eksekusi _single-threaded_ ini bisa menjadi lebih buruk, terutama jika banyak pengguna mengakses server secara bersamaan. Beberapa permintaan akan mengalami _delay_ yang signifikan, yang pada akhirnya menyebabkan pengalaman pengguna yang buruk. Misalnya, jika satu pengguna meminta halaman yang berat seperti `/sleep`, semua pengguna lain yang hanya ingin mengakses halaman sederhana seperti `/` tetap harus menunggu hingga proses `/sleep` selesai. Jika banyak permintaan lambat datang dalam waktu bersamaan, server bisa menjadi sangat lambat dan tidak responsif, sehingga tidak dapat menangani beban pengguna dengan baik. Oleh karena itu, server _single-threaded_ kurang optimal untuk menangani banyak permintaan secara bersamaan dan membutuhkan solusi seperti _multi-threading_ agar lebih efisien.
