@@ -31,13 +31,19 @@ message-body
 - **Reason-Phrase** : Penjelasan singkat tentang status _request_.
 - **Headers** : Informasi tambahan seperti _Content-Length_, Content-Type__, dll.
 - **Message-Body** : Isi dari halaman HTML yang dikirim ke browser.
+
+**Cara memisahkan respon :**
+
+- **Periksa request _method_** : Apakah permintaan menggunakan GET?
+- **Periksa _path_** : Apakah yang diminta adalah / (halaman utama) atau halaman lain?
+- **Periksa _HTTP version_** : Apakah menggunakan HTTP/1.1?
 </details>
 
 ### Milestone 1: Single-Threaded Web Server
 ---
 **1. Membuat Server yang Mendengarkan Koneksi TCP**
 
-Hal pertama yang kita lakukan adalah _Server_ perlu mendengarkan koneksi yang masuk agar bisa menerima permintaan dari _browser_. Disini saya menggunakan `TcpListener` untuk menangani masalah ini
+Hal pertama yang kita lakukan adalah _Server_ perlu mendengarkan koneksi yang masuk agar bisa menerima permintaan dari _browser_. Disini kita menggunakan `TcpListener` untuk menangani masalah ini
 
 ```rust
 TcpListener::bind("127.0.0.1:7878")
@@ -120,10 +126,12 @@ Request: [
 
 ### Milestone 2: Returning HTML
 ---
-![Commit 2 screen capture](assets/images/commit2.png)
-Sebelumnya, web server hanya menerima koneksi tetapi tidak mengirimkan respons yang bisa ditampilkan oleh browser. Sekarang, saya akan mengirimkan halaman HTML sebagai respons HTTP yang valid, sehingga browser dapat merendernya dengan benar.
 
-Pada tahap ini, saya mengubah fungsi `handle_connection` kembali agar bisa mengirimkan halaman HTML.
+![Commit 2 screen capture](assets/images/commit2.png)
+
+Sebelumnya, web server hanya menerima koneksi tetapi tidak mengirimkan respons yang bisa ditampilkan oleh browser. Sekarang, kita akan mengirimkan halaman HTML sebagai respons HTTP yang valid, sehingga browser dapat merendernya dengan benar.
+
+Pada tahap ini, kita akan mengubah fungsi `handle_connection` kembali agar bisa mengirimkan halaman HTML.
 
 **1. Membaca File **HTML** dan Menyiapkan Respons**
 ```rust
@@ -131,9 +139,9 @@ let status_line = "HTTP/1.1 200 OK";
 let contents = fs::read_to_string("hello.html").unwrap();
 let length = contents.len();
 ```
-Disini
+Penjelasan
 - `status_line`: Menentukan status **HTTP** sebagai 200 OK (berhasil).
-- `fs::read_to_string("hello.html")`: Saya menggunakan `fs::read_to_string` karena saya ingin mengirimkan file HTML yakni `hello.html` sebagai bagian dari respons **HTTP**, dimana `fs::read_to_string` akan membaca file tersebut ke dalam string dan kemudian dikirimkan ke browser.
+- `fs::read_to_string("hello.html")`: Kita menggunakan `fs::read_to_string` karena kita ingin mengirimkan file HTML yakni `hello.html` sebagai bagian dari respons **HTTP**, dimana `fs::read_to_string` akan membaca file tersebut ke dalam string dan kemudian dikirimkan ke browser.
 - `length`: Menghitung panjang isi HTML untuk dikirimkan dalam header _Content-Length_.
 
 **2. Membentuk Respons HTTP**
@@ -142,7 +150,7 @@ let response = format!(
     "{status_line}\r\nContent-Length: {length}\r\n\r\n{contents}"
 )
 ```
-Format respon yang dibuat
+**Format respon yang dibuat** :
 ```html
 HTTP/1.1 200 OK
 Content-Length: <panjang-konten>
@@ -158,9 +166,58 @@ Content-Length: <panjang-konten>
 ```rust
 stream.write_all(response.as_bytes()).unwrap();
 ```
-Disini
+Penjelasan
 - `.as_bytes()` : Mengubah string menjadi byte agar bisa dikirim melalui **TCP**.
 - `write_all()` : Mengirim seluruh data ke klien (browser).
 - `unwrap()` : Jika terjadi error, program akan berhenti dengan _panic_.
 
-**4. Menambahkan File HTML untuk Respons yakni [hello.html](https://github.com/almerazka/advprog-module-6/blob/main/hello.html)
+**4. Menambahkan File HTML untuk Respons yakni [hello.html](https://github.com/almerazka/advprog-module-6/blob/main/hello.html)**
+
+### Milestone 3: Validating request and selectively responding
+---
+
+![Commit 3 screen capture](assets/images/commit3.png)
+
+Dalam implementasi _web_ server sederhana ini, kita perlu memisahkan respons berdasarkan permintaan yang diterima dari browser. Hal ini penting agar server dapat memberikan halaman yang sesuai dengan permintaan pengguna dan tidak selalu mengembalikan halaman yang sama, seperti yang terjadi saat ini. Dimana `hello.html` akan ditampilkan apapun _request_-nya.
+
+Oleh karena itu, kita perlu memisahkan respon berdasarkan tiga aspek utama dalam **HTTP Headers** yaitu _request method_, _path_, dan _HTTP version_.
+
+1. Jika permintaan menggunakan metode **GET**, menuju path /, dan menggunakan HTTP/1.1, maka server akan mengembalikan halaman `hello.html` dengan kode status **200 OK**.
+2. Namun, jika permintaan memiliki path lain atau menggunakan metode **HTTP** yang berbeda, server akan merespons dengan kode status 4**04 NOT FOUND** dan mengembalikan halaman `404.html`.
+    ```rust
+    let (status_line, filename) = if request_line == "GET / HTTP/1.1" {
+        ("HTTP/1.1 200 OK", "hello.html")
+    } else {
+        ("HTTP/1.1 404 NOT FOUND", "404.html")
+    };
+    ```
+Kode ini secara sederhana mengecek apakah _request line_ sesuai dengan **GET / HTTP/1.1**. Jika iya, server akan mengembalikan halaman utama. Jika tidak, server akan menampilkan halaman error **404 Not Found**. Dengan cara ini, server bisa menangani berbagai jenis _request_ dengan lebih fleksibel, meniru perilaku _web_ server sebenarnya yang memberikan halaman berbeda berdasarkan permintaan pengguna.
+
+Sebelum _refactoring_, kode yang menangani _request_ dan membentuk respons masih memiliki banyak duplikasi sehingga kita harus menulis ulang kode untuk menentukan _status_line_, membaca file HTML, dan menghitung panjang konten baik untuk **200 OK** maupun **404 NOT FOUND**. 
+
+Hal ini bertentangan dengan prinsip **DRY (Don't Repeat Yourself)**, yang menyebabkan kode menjadi lebih panjang, sulit dikelola, kurang fleksibel, dan lebih rentan terhadap kesalahan ketika ada perubahan di masa depan. Oleh karena itu, _refactoring_ diperlukan untuk membuat kode lebih bersih, lebih mudah diperluas, dan lebih mudah dipelihara dengan cara mengeluarkan variabel yang sama dalam blok **if-else**, sehingga proses pemilihan status dan file dapat dilakukan dalam satu tempat.
+
+**1. Membaca Request dari Browser**
+```rust
+let request_line = buf_reader.lines().next().unwrap().unwrap();
+```
+Baris ini mengambil baris pertama dari request HTTP, yang berisi informasi utama seperti metode _request_ (**GET**), _path_ (/), dan versi HTTP (**HTTP/1.1**).
+- `.lines()` menghasilkan iterator dari setiap baris request.
+- `.next()` mengambil baris pertama (_request line_) dari iterator tersebut.
+- `unwrap()` pertama mengekstrak nilai dari **Option** (_Some_ atau _None_), memastikan bahwa ada _request_ yang tersedia.
+- `unwrap()` kedua mengekstrak nilai dari Result, memastikan bahwa tidak ada error dalam membaca data. Namun jika ada error, program berhenti.
+  
+**2. Menentukan Halaman yang Ditampilkan**
+```rust
+let (status_line, filename) = if request_line == "GET / HTTP/1.1" {
+    ("HTTP/1.1 200 OK", "hello.html")
+} else {
+    ("HTTP/1.1 404 NOT FOUND", "404.html")
+};
+```
+
+**3. Membaca File HTML dan Mengirimkan Respons**
+```rust
+let contents = fs::read_to_string(filename).unwrap(); //Membaca file HTML sesuai filename yang dipilih.
+...
+```
