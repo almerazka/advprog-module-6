@@ -246,3 +246,29 @@ Kode ini menambahkan _match statement_ untuk menangani permintaan ke `/sleep`. J
 > Masalah ini terjadi karena server kita menggunakan  _single-thread_, yang berarti hanya ada satu eksekusi utama yang menangani seluruh permintaan. Dalam arsitektur ini, ketika browser mengirimkan permintaan ke server, server akan memproses permintaan pertama yang diterima. Jika permintaan tersebut memerlukan waktu lama untuk diproses, seperti dalam kasus penggunaan `thread::sleep()`, server akan berhenti sementara hingga proses tersebut selesai. Selama waktu ini, permintaan lain yang datang tidak dapat diproses dan harus menunggu giliran. Setelah permintaan pertama selesai, server baru bisa mulai menangani permintaan berikutnya. Karena mekanisme ini, server kita bersifat _blocking_, di mana permintaan yang lebih cepat pun tetap harus menunggu hingga permintaan yang lebih lambat selesai diproses.
 
 > Dalam lingkungan nyata, dampak dari eksekusi _single-threaded_ ini bisa menjadi lebih buruk, terutama jika banyak pengguna mengakses server secara bersamaan. Beberapa permintaan akan mengalami _delay_ yang signifikan, yang pada akhirnya menyebabkan pengalaman pengguna yang buruk. Misalnya, jika satu pengguna meminta halaman yang berat seperti `/sleep`, semua pengguna lain yang hanya ingin mengakses halaman sederhana seperti `/` tetap harus menunggu hingga proses `/sleep` selesai. Jika banyak permintaan lambat datang dalam waktu bersamaan, server bisa menjadi sangat lambat dan tidak responsif, sehingga tidak dapat menangani beban pengguna dengan baik. Oleh karena itu, server _single-threaded_ kurang optimal untuk menangani banyak permintaan secara bersamaan dan membutuhkan solusi seperti _multi-threading_ agar lebih efisien.
+
+### Milestone 5: Multithreaded Server
+---
+Pada tahap ini, kita telah mengubah web server dari _single-threaded_ menjadi _multi-threaded_ menggunakan **ThreadPool**. Tujuan utama dari implementasi ini adalah untuk memungkinkan server menangani banyak request secara paralel, tanpa harus membuat _thread_ baru setiap kali ada _request_ masuk.
+
+**ThreadPool** bekerja dengan cara membuat sejumlah _thread_ worker tetap yang akan menangani _request_ masuk. 
+
+***Berikut cara kerjanya :***
+
+**1. Inisialisasi ThreadPool**
+
+Ketika `ThreadPool::new(size)` dipanggil, sejumlah _Worker_ dibuat sesuai dengan jumlah _size_ yang diberikan. Setiap **Worker** memiliki ID unik dan sebuah _thread_ yang langsung dijalankan tetapi tidak melakukan apa-apa sampai ada tugas yang dikirimkan oleh **ThreadPool**.
+
+**2. Membuat dan Menggunakan Channel untuk Komunikasi**
+
+Untuk memungkinkan komunikasi antara **ThreadPool** dan **Worker**, digunakan `channel (mpsc::channel())`. **Sender** dari _channel_ disimpan dalam **ThreadPool** untuk mengirim tugas, sedangkan **receiver** dibagikan ke setiap **Worker** menggunakan `Arc<Mutex<mpsc::Receiver<Job>>>`, yang memungkinkan banyak **Worker** mengaksesnya secara bersamaan tanpa menyebabkan _race condition_.
+
+**3. Menjalankan Tugas dengan `execute(f)`**
+
+Saat server menerima _request_, fungsi `execute(f)` akan dipanggil dengan _closure_ sebagai tugasnya. _Closure_ ini kemudian dikemas dalam `Box<Job>` agar bisa dikirim melalui _channel_ ke salah satu **Worker** yang tersedia. 
+
+**4. Worker Menunggu dan Menjalankan Tugas**
+
+Worker yang mendapatkan tugas akan mengambilnya dari **receiver** _channel_ menggunakan `receiver.lock().unwrap().recv().unwrap()` untuk memastikan hanya satu **Worker** yang mengambil satu tugas pada satu waktu. Setelah tugas diterima, **Worker** akan menjalankan _closure_ tersebut, lalu kembali ke kondisi menunggu tugas baru. 
+
+Dengan sistem ini, **ThreadPool** dapat menangani banyak _request_ secara paralel, tanpa harus membuat dan menghancurkan _thread_ setiap kali ada _request_ baru, sehingga lebih efisien dan scalable karena server tidak perlu menunggu satu _request_ selesai sebelum memproses yang lain. Selain itu, penggunaan ulang _thread_ yang sudah ada menghindari _overhead_ dari pembuatan _thread_ baru setiap kali ada permintaan, menjadikannya lebih efisien dalam penggunaan sumber daya. Dengan membatasi jumlah thread yang aktif, **ThreadPool** juga mencegah server mengalami _overload_ ketika menerima terlalu banyak request secara bersamaan.
