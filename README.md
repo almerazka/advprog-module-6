@@ -257,18 +257,29 @@ Pada tahap ini, kita telah mengubah web server dari _single-threaded_ menjadi _m
 
 **1. Inisialisasi ThreadPool**
 
-Ketika `ThreadPool::new(size)` dipanggil, sejumlah _Worker_ dibuat sesuai dengan jumlah _size_ yang diberikan. Setiap **Worker** memiliki ID unik dan sebuah _thread_ yang langsung dijalankan tetapi tidak melakukan apa-apa sampai ada tugas yang dikirimkan oleh **ThreadPool**.
+> Ketika `ThreadPool::new(size)` dipanggil, sejumlah _Worker_ dibuat sesuai dengan jumlah _size_ yang diberikan. Setiap **Worker** memiliki ID unik dan sebuah _thread_ yang langsung dijalankan tetapi tidak melakukan apa-apa sampai ada tugas yang dikirimkan oleh **ThreadPool**.
 
 **2. Membuat dan Menggunakan Channel untuk Komunikasi**
 
-Untuk memungkinkan komunikasi antara **ThreadPool** dan **Worker**, digunakan `channel (mpsc::channel())`. **Sender** dari _channel_ disimpan dalam **ThreadPool** untuk mengirim tugas, sedangkan **receiver** dibagikan ke setiap **Worker** menggunakan `Arc<Mutex<mpsc::Receiver<Job>>>`, yang memungkinkan banyak **Worker** mengaksesnya secara bersamaan tanpa menyebabkan _race condition_.
+> Untuk memungkinkan komunikasi antara **ThreadPool** dan **Worker**, digunakan `channel (mpsc::channel())`. **Sender** dari _channel_ disimpan dalam **ThreadPool** untuk mengirim tugas, sedangkan **receiver** dibagikan ke setiap **Worker** menggunakan `Arc<Mutex<mpsc::Receiver<Job>>>`, yang memungkinkan banyak **Worker** mengaksesnya secara bersamaan tanpa menyebabkan _race condition_.
 
 **3. Menjalankan Tugas dengan `execute(f)`**
 
-Saat server menerima _request_, fungsi `execute(f)` akan dipanggil dengan _closure_ sebagai tugasnya. _Closure_ ini kemudian dikemas dalam `Box<Job>` agar bisa dikirim melalui _channel_ ke salah satu **Worker** yang tersedia. 
+> Saat server menerima _request_, fungsi `execute(f)` akan dipanggil dengan _closure_ sebagai tugasnya. _Closure_ ini kemudian dikemas dalam `Box<Job>` agar bisa dikirim melalui _channel_ ke salah satu **Worker** yang tersedia. 
 
 **4. Worker Menunggu dan Menjalankan Tugas**
 
-Worker yang mendapatkan tugas akan mengambilnya dari **receiver** _channel_ menggunakan `receiver.lock().unwrap().recv().unwrap()` untuk memastikan hanya satu **Worker** yang mengambil satu tugas pada satu waktu. Setelah tugas diterima, **Worker** akan menjalankan _closure_ tersebut, lalu kembali ke kondisi menunggu tugas baru. 
+> Worker yang mendapatkan tugas akan mengambilnya dari **receiver** _channel_ menggunakan `receiver.lock().unwrap().recv().unwrap()` untuk memastikan hanya satu **Worker** yang mengambil satu tugas pada satu waktu. Setelah tugas diterima, **Worker** akan menjalankan _closure_ tersebut, lalu kembali ke kondisi menunggu tugas baru. 
 
 Dengan sistem ini, **ThreadPool** dapat menangani banyak _request_ secara paralel, tanpa harus membuat dan menghancurkan _thread_ setiap kali ada _request_ baru, sehingga lebih efisien dan scalable karena server tidak perlu menunggu satu _request_ selesai sebelum memproses yang lain. Selain itu, penggunaan ulang _thread_ yang sudah ada menghindari _overhead_ dari pembuatan _thread_ baru setiap kali ada permintaan, menjadikannya lebih efisien dalam penggunaan sumber daya. Dengan membatasi jumlah thread yang aktif, **ThreadPool** juga mencegah server mengalami _overload_ ketika menerima terlalu banyak request secara bersamaan.
+
+### Bonus: Try to create a function build as a replacement to new and compare
+---
+
+Pada tahap ini, kita memperkenalkan fungsi `build()` sebagai pengganti `new()` untuk membuat **ThreadPool** dengan cara yang lebih aman dan fleksibel dalam menangani error. Perbedaan utama antara `build()` dan `new()` terletak pada pendekatan _error handling_nya.
+
+> Dimana dalam pendekatan lama dengan `new()`, jika ukuran **ThreadPool** yang diberikan tidak valid (misalnya 0), maka program akan langsung _panic_. Hal ini dapat menyebabkan program berhenti secara mendadak tanpa memberikan kesempatan untuk menangani kesalahan dengan baik. Sebagai gantinya, `build()` mengembalikan `Result<ThreadPool, &'static str>`, yang memungkinkan kita untuk menangani kesalahan dengan lebih baik tanpa menyebabkan _crash_ yang tidak perlu.
+
+> Dengan pendekatan baru ini, jika `size == 0`, maka `build()` akan mengembalikan `Err("Number of threads must be greater than zero!")`, sehingga program masih bisa berjalan dengan baik dan memberikan pesan error yang lebih jelas kepada pengguna. Selain itu, dalam penggunaan `build()` di `main.rs`, kita menggunakan _match_ untuk menangani **Result**. Jika `build()` berhasil `(Ok(pool))`, maka **ThreadPool** akan digunakan seperti biasa. Namun, jika gagal `(Err(err))`, maka program akan mencetak pesan error dengan `eprintln!()` dan menghentikan eksekusi secara terkontrol.
+
+Pendekatan ini tentunya meningkatkan _reliability_ dari aplikasi karena error tidak menyebabkan program berhenti secara tiba-tiba, tetapi memberikan kesempatan untuk ditangani dengan baik. Hal ini juga membantu dalam _debugging_, karena error dapat ditampilkan dengan jelas, sehingga lebih mudah untuk mengetahui penyebab masalah dibandingkan dengan langsung mengalami _panic_.

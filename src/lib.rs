@@ -11,8 +11,10 @@ pub struct ThreadPool {
 type Job = Box<dyn FnOnce() + Send + 'static>; // Job akan menyimpan tugas (closure)
 
 impl ThreadPool {
-    pub fn new(size: usize) -> ThreadPool {
-        assert!(size > 0);
+    pub fn build(size: usize) -> Result<ThreadPool, &'static str> {
+        if size == 0 {
+            return Err("Number of threads must be greater than zero!");
+        }
 
         let (sender, receiver) = mpsc::channel(); // Membuat channel untuk komunikasi
         
@@ -24,7 +26,7 @@ impl ThreadPool {
             workers.push(Worker::new(id, Arc::clone(&receiver))); // Mengirim receiver ke Worker dan mengclone Arc agar bisa digunakan oleh semua Worker
         }
 
-        ThreadPool { workers, sender }
+        Ok(ThreadPool { workers, sender })
     }
 
     pub fn execute<F>(&self, f: F)

@@ -9,7 +9,13 @@ use std::{
 
 fn main() {
     let listener = TcpListener::bind("127.0.0.1:7878").unwrap();
-    let pool = ThreadPool::new(4); // Membuat thread pool dengan 4 thread
+    let pool = match ThreadPool::build(4) { // Membuat thread pool dengan 4 thread
+        Ok(pool) => pool,
+        Err(err) => {
+            eprintln!("Failed to create ThreadPool: {}", err);
+            return;
+        }
+    }; 
 
     for stream in listener.incoming() {
         let stream = stream.unwrap();
