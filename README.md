@@ -33,6 +33,9 @@ message-body
 - **Message-Body** : Isi dari halaman HTML yang dikirim ke browser.
 </details>
 
+<details>
+    <summary><strong> 🍉 Reflection 1 </strong></summary> 
+    
 ### Milestone 1: Single-Threaded Web Server
 ---
 **1. Membuat Server yang Mendengarkan Koneksi TCP**
@@ -117,7 +120,11 @@ Request: [
     "Accept-Language: en-GB,en;q=0.9,id-ID;q=0.8,id;q=0.7,en-US;q=0.6",     
 ]
 ```
+</details>
 
+<details>
+    <summary><strong> 🍊 Reflection 2 </strong></summary> 
+    
 ### Milestone 2: Returning HTML
 ---
 
@@ -167,6 +174,11 @@ Penjelasan
 
 **4. Menambahkan File HTML untuk Respons yakni [hello.html](https://github.com/almerazka/advprog-module-6/blob/main/hello.html)**
 
+</details>
+
+<details>
+    <summary><strong> 🍋 Reflection 3 </strong></summary> 
+    
 ### Milestone 3: Validating request and selectively responding
 ---
 
@@ -224,6 +236,11 @@ let contents = fs::read_to_string(filename).unwrap(); //Membaca file HTML sesuai
 ...
 ```
 
+</details>
+
+<details>
+    <summary><strong> 🥑 Reflection 4 </strong></summary> 
+    
 ### Milestone 4: Simulation slow response
 ---
 Dalam implementasi web server kita saat ini, server hanya dapat menangani satu permintaan pada satu waktu karena berjalan dalam _single-thread_. Ini berarti bahwa setiap permintaan akan diproses secara berurutan, dan jika ada permintaan yang membutuhkan waktu lama untuk diproses, permintaan lain harus menunggu sampai permintaan sebelumnya selesai. Untuk memahami masalah ini, kita mensimulasikan respons lambat dengan menambahkan fitur yang menyebabkan server tidur (_sleep_) selama beberapa detik sebelum merespons permintaan.
@@ -247,6 +264,11 @@ Kode ini menambahkan _match statement_ untuk menangani permintaan ke `/sleep`. J
 
 > Dalam lingkungan nyata, dampak dari eksekusi _single-threaded_ ini bisa menjadi lebih buruk, terutama jika banyak pengguna mengakses server secara bersamaan. Beberapa permintaan akan mengalami _delay_ yang signifikan, yang pada akhirnya menyebabkan pengalaman pengguna yang buruk. Misalnya, jika satu pengguna meminta halaman yang berat seperti `/sleep`, semua pengguna lain yang hanya ingin mengakses halaman sederhana seperti `/` tetap harus menunggu hingga proses `/sleep` selesai. Jika banyak permintaan lambat datang dalam waktu bersamaan, server bisa menjadi sangat lambat dan tidak responsif, sehingga tidak dapat menangani beban pengguna dengan baik. Oleh karena itu, server _single-threaded_ kurang optimal untuk menangani banyak permintaan secara bersamaan dan membutuhkan solusi seperti _multi-threading_ agar lebih efisien.
 
+</details>
+
+<details>
+    <summary><strong> 🫐 Reflection 5 </strong></summary> 
+    
 ### Milestone 5: Multithreaded Server
 ---
 Pada tahap ini, kita telah mengubah web server dari _single-threaded_ menjadi _multi-threaded_ menggunakan **ThreadPool**. Tujuan utama dari implementasi ini adalah untuk memungkinkan server menangani banyak request secara paralel, tanpa harus membuat _thread_ baru setiap kali ada _request_ masuk.
@@ -273,6 +295,11 @@ Pada tahap ini, kita telah mengubah web server dari _single-threaded_ menjadi _m
 
 Dengan sistem ini, **ThreadPool** dapat menangani banyak _request_ secara paralel, tanpa harus membuat dan menghancurkan _thread_ setiap kali ada _request_ baru, sehingga lebih efisien dan scalable karena server tidak perlu menunggu satu _request_ selesai sebelum memproses yang lain. Selain itu, penggunaan ulang _thread_ yang sudah ada menghindari _overhead_ dari pembuatan _thread_ baru setiap kali ada permintaan, menjadikannya lebih efisien dalam penggunaan sumber daya. Dengan membatasi jumlah thread yang aktif, **ThreadPool** juga mencegah server mengalami _overload_ ketika menerima terlalu banyak request secara bersamaan.
 
+</details>
+
+<details>
+    <summary><strong> 🥥 Bonus </strong></summary>
+    
 ### Bonus: Try to create a function build as a replacement to new and compare
 ---
 
@@ -283,3 +310,12 @@ Pada tahap ini, kita memperkenalkan fungsi `build()` sebagai pengganti `new()` u
 > Dengan pendekatan baru ini, jika `size == 0`, maka `build()` akan mengembalikan `Err("Number of threads must be greater than zero!")`, sehingga program masih bisa berjalan dengan baik dan memberikan pesan error yang lebih jelas kepada pengguna. Selain itu, dalam penggunaan `build()` di `main.rs`, kita menggunakan _match_ untuk menangani **Result**. Jika `build()` berhasil `(Ok(pool))`, maka **ThreadPool** akan digunakan seperti biasa. Namun, jika gagal `(Err(err))`, maka program akan mencetak pesan error dengan `eprintln!()` dan menghentikan eksekusi secara terkontrol.
 
 Pendekatan ini tentunya meningkatkan _reliability_ dari aplikasi karena error tidak menyebabkan program berhenti secara tiba-tiba, tetapi memberikan kesempatan untuk ditangani dengan baik. Hal ini juga membantu dalam _debugging_, karena error dapat ditampilkan dengan jelas, sehingga lebih mudah untuk mengetahui penyebab masalah dibandingkan dengan langsung mengalami _panic_.
+
+</details>
+
+## Referensi
+[Building a Single-Threaded Web Server](https://doc.rust-lang.org/book/ch21-01-single-threaded.html)
+
+[Turning Our Single-Threaded Server into a Multithreaded Server](https://doc.rust-lang.org/book/ch21-02-multithreaded.html)
+
+[Refactoring to Improve Modularity and Error Handling](https://rust-book.cs.brown.edu/ch20-00-final-project-a-web-server.html)
