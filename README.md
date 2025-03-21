@@ -318,4 +318,4 @@ Pendekatan ini tentunya meningkatkan _reliability_ dari aplikasi karena error ti
 
 [Turning Our Single-Threaded Server into a Multithreaded Server](https://doc.rust-lang.org/book/ch21-02-multithreaded.html)
 
-[Refactoring to Improve Modularity and Error Handling](https://rust-book.cs.brown.edu/ch20-00-final-project-a-web-server.html)
+[Refactoring to Improve Modularity and Error Handling](https://rust-book.cs.brown.edu/ch12-03-improving-error-handling-and-modularity.html?highlight=refactoring#refactoring-to-improve-modularity-and-error-handling)
